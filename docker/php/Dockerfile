@@ -1,12 +1,13 @@
 FROM php:8.2.3-fpm
 
+# Объявляем переменные
 ARG user
 ARG uid
 
-# Set working directory
+# Устанавливаем рабочую директорию
 WORKDIR /var/www
 
-# Install system dependencies
+# Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
     default-mysql-server \
     default-mysql-client \
@@ -30,28 +31,31 @@ RUN apt-get update && apt-get install -y \
     libwebp-dev \
     sudo
 
-# Clear cache
+# Очистка кэша
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions
+# Устанавливаем PHP расширения
 RUN docker-php-ext-install intl pdo pdo_mysql mbstring exif pcntl bcmath zip gettext
 
-# Get latest Composer
+# Получаем Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Add user for laravel application
-RUN groupadd -g $uid $user
-RUN useradd -u $uid -ms /bin/bash -g $user $user
+# Добавляем отладочную информацию для переменных окружения
+RUN echo "UID: ${uid}" && echo "USER: ${user}"
 
-# Copy existing application directory contents
+# Добавляем пользователя для Laravel приложения (с проверкой)
+RUN if ! getent group ${user}; then groupadd -g ${uid} ${user}; fi && \
+    if ! id -u ${user} > /dev/null 2>&1; then useradd -u ${uid} -ms /bin/bash -g ${user} ${user}; fi
+
+# Копируем содержимое проекта в контейнер
 COPY . /var/www
 
-# Copy existing application directory permissions
-COPY --chown=$uid:$user . /var/www
+# Устанавливаем права на файлы
+COPY --chown=${uid}:${user} . /var/www
 
-# Change current user
-USER $user
-# Expose port 9000 and start php-fpm server
+# Меняем пользователя
+USER ${user}
+
+# Открываем порт 9000 для php-fpm
 EXPOSE 9000
 CMD ["php-fpm"]
-
